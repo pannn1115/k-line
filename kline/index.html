@@ -1,0 +1,1165 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>K 線翻譯機</title>
+<meta name="description" content="用一般人看得懂的方式，解釋 K 棒、均線、成交量、RSI 與 KD。資料為虛構教學股。">
+<script src="lib/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{
+  --bg:#f6f5f1; --surface:#ffffff; --surface-2:#f1efe9; --ink:#1c1d1f; --muted:#5d6168; --faint:#8b8f96;
+  --line:#e3e1db; --grid:#f0eee9;
+  --up:#d93a3a; --down:#13894b; --up-soft:rgba(217,58,58,.10); --down-soft:rgba(19,137,75,.10);
+  --ma5:#c87400; --ma20:#2f5fd0; --rsi:#7b4fd6; --k:#2f5fd0; --d:#c87400;
+  --accent:#2f5fd0; --accent-soft:rgba(47,95,208,.10);
+  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#121315; --surface:#1a1b1e; --surface-2:#222327; --ink:#ececea; --muted:#a3a6ac; --faint:#7d8087;
+    --line:#2d2f34; --grid:#24262a;
+    --up:#f05555; --down:#2fb36b; --up-soft:rgba(240,85,85,.14); --down-soft:rgba(47,179,107,.14);
+    --ma5:#f0a030; --ma20:#6d95ff; --rsi:#a98aff; --k:#6d95ff; --d:#f0a030;
+    --accent:#6d95ff; --accent-soft:rgba(109,149,255,.14);
+    --shadow:none;
+    color-scheme:dark;
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:"PingFang TC","Noto Sans TC","Microsoft JhengHei",system-ui,-apple-system,"Segoe UI",sans-serif;
+  line-height:1.7;font-size:16px;-webkit-text-size-adjust:100%}
+a{color:var(--accent)}
+button,select{font:inherit;color:inherit}
+input[type=range]{accent-color:var(--accent)}
+.wrap{max-width:1120px;margin:0 auto;padding:0 16px}
+header.top{padding-top:40px;padding-bottom:8px}
+.brand{display:flex;align-items:center;gap:12px}
+.logo{width:40px;height:40px;flex:none}
+h1{font-size:clamp(26px,4vw,34px);margin:0;letter-spacing:.02em}
+.lede{color:var(--muted);margin:8px 0 0;max-width:46em}
+nav.toc{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);border-bottom:1px solid var(--line);margin-top:20px}
+nav.toc .wrap{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+nav.toc a{flex:none;padding:12px 12px;color:var(--muted);text-decoration:none;font-size:15px;white-space:nowrap}
+nav.toc a:hover{color:var(--ink)}
+section{padding:40px 0 8px;scroll-margin-top:48px}
+h2{font-size:22px;margin:0 0 4px}
+h2 .num{display:inline-block;margin-right:6px;color:var(--accent)}
+.sub{color:var(--muted);margin:0 0 20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+.btn{padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;min-height:40px;font-size:14px;white-space:nowrap}
+.btn:hover{border-color:var(--accent)}
+.btn:disabled{opacity:.4;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.sm{min-height:34px;padding:4px 12px;font-size:13px}
+.fine{font-size:12px;color:var(--faint);margin-top:12px}
+.pill{display:inline-block;padding:0 8px;border-radius:999px;font-size:14px;font-weight:600}
+.pill.up{background:var(--up-soft);color:var(--up)}
+.pill.down{background:var(--down-soft);color:var(--down)}
+.pill.flat{background:var(--surface-2);color:var(--muted)}
+.note{background:var(--surface-2);border-radius:10px;padding:10px 14px;color:var(--muted);font-size:14px;margin-top:12px}
+.warn{background:var(--accent-soft);border-radius:8px;padding:8px 10px;font-size:14px}
+.tag{font-size:12px;padding:1px 8px;border-radius:999px;background:var(--surface-2);color:var(--muted);font-weight:600}
+.tag.hot{background:var(--up-soft);color:var(--up)}
+.tag.cold{background:var(--down-soft);color:var(--down)}
+.chg{font-weight:700;font-variant-numeric:tabular-nums}
+.chg.up{color:var(--up)} .chg.down{color:var(--down)} .chg.flat{color:var(--muted)}
+
+/* ① anatomy */
+.anatomy{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:20px;align-items:center;padding:20px}
+.anatomy svg{width:100%;height:auto;display:block}
+.anatomy svg text{font-size:13px;fill:var(--muted)}
+.anatomy svg .lbl-strong{fill:var(--ink);font-weight:600}
+.anatomy svg .leader{stroke:var(--faint);stroke-width:1;stroke-dasharray:3 3}
+.anatomy ul{margin:0;padding-left:1.2em}
+.anatomy li{margin:6px 0}
+
+/* ② lab */
+.lab{display:grid;grid-template-columns:minmax(220px,300px) minmax(0,1fr) minmax(0,1fr);gap:20px;padding:20px;align-items:start}
+.lab-fig svg{width:100%;height:auto;display:block}
+.lab-fig text{font-size:12px;fill:var(--muted);font-variant-numeric:tabular-nums}
+.lab-fig .val{fill:var(--ink);font-weight:600}
+.presets{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.presets .btn.on{border-color:var(--accent);background:var(--accent-soft)}
+.sl{display:grid;grid-template-columns:76px minmax(0,1fr) 54px;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+.sl input{width:100%;min-height:28px;margin:0}
+.sl output{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+.sl .nm{display:flex;align-items:center;gap:6px}
+.sl .dot{width:8px;height:8px;border-radius:2px;flex:none}
+.lab-out h4{margin:0 0 6px;font-size:14px;color:var(--muted);font-weight:600}
+.lab-out p{margin:6px 0;font-size:15px}
+.propbar{display:flex;height:26px;border-radius:6px;overflow:hidden;margin:8px 0 4px;background:var(--surface-2);font-size:12px}
+.propbar div{display:flex;align-items:center;justify-content:center;color:#fff;white-space:nowrap;overflow:hidden;min-width:0;transition:flex-grow .15s}
+.propbar .shadow{background:var(--faint)}
+.proplegend{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+
+/* ③ chart */
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:10px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;
+  background:var(--surface);cursor:pointer;font-size:14px;user-select:none;min-height:36px}
+.chip input{accent-color:var(--accent);margin:0;width:16px;height:16px}
+.chip .sw{width:14px;height:3px;border-radius:2px;display:inline-block}
+.chip.on{border-color:var(--accent);background:var(--accent-soft)}
+.spacer{flex:1}
+.playbar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:10px 12px;margin-bottom:10px}
+.playbar .timeline{flex:1 1 220px;display:flex;align-items:center;gap:10px;min-width:0}
+.playbar .timeline input{flex:1;min-width:0;margin:0}
+.playbar .prog{font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.playbar select{padding:6px 8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);min-height:36px;font-size:14px}
+.playbtn{min-width:96px}
+.drawers{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;align-items:start}
+details.drawer{padding:4px 14px}
+details.drawer summary{cursor:pointer;color:var(--accent);font-size:15px;padding:6px 0}
+details.drawer[open]{padding-bottom:12px}
+.gloss-grid{display:grid;gap:8px;font-size:14px}
+.gloss-grid b{display:block;font-size:15px}
+.params .sl{grid-template-columns:96px minmax(0,1fr) 44px}
+.params .row-end{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:6px}
+.params .row-end p{margin:0;font-size:13px;color:var(--muted)}
+.chart-layout{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(300px,1fr);gap:16px;align-items:start}
+.chart-box{position:relative;padding:8px 4px 4px 8px;overflow:hidden}
+#chart{position:relative;width:100%}
+.legend-bar{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;font-size:13px;color:var(--muted);padding:4px 8px 8px;min-height:30px}
+.legend-bar i,.pane-label i{display:inline-block;width:12px;height:2px;border-radius:1px;vertical-align:middle;margin-right:4px}
+.legend-bar .ohlc{color:var(--ink);font-variant-numeric:tabular-nums}
+.pane-label{position:absolute;left:10px;z-index:3;font-size:12px;color:var(--muted);pointer-events:none;
+  display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:color-mix(in srgb,var(--surface) 80%,transparent);
+  padding:0 4px;border-radius:4px;max-width:calc(100% - 80px)}
+.chart-hint{font-size:13px;color:var(--faint);padding:6px 8px 4px}
+.only-narrow{display:none}
+.explain{padding:18px 18px 14px;position:sticky;top:60px;max-height:calc(100vh - 76px);overflow:auto}
+.explain .head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.explain .date{font-size:18px;font-weight:700}
+.ohlc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:12px 0 4px}
+.ohlc-grid div{background:var(--surface-2);border-radius:8px;padding:6px 4px;text-align:center}
+.ohlc-grid small{display:block;color:var(--muted);font-size:12px;line-height:1.3}
+.ohlc-grid b{font-variant-numeric:tabular-nums;font-size:15px}
+.ex-sec{border-top:1px solid var(--line);padding-top:10px;margin-top:12px}
+.ex-sec h4{margin:0 0 4px;font-size:14px;color:var(--muted);font-weight:600}
+.ex-sec p{margin:4px 0;font-size:15px}
+.navbtns{display:flex;gap:8px;margin-top:14px}
+.navbtns .btn{flex:1}
+
+/* ④ patterns */
+.pattern-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.pcard{padding:14px 16px;text-align:left;cursor:pointer;transition:border-color .15s,transform .15s;display:flex;flex-direction:column;gap:6px}
+.pcard:hover{border-color:var(--accent);transform:translateY(-1px)}
+.pcard:disabled{opacity:.5;cursor:default;transform:none}
+.pcard .row{display:flex;align-items:center;gap:10px}
+.pcard .mini{width:28px;height:44px;flex:none}
+.pcard h3{margin:0;font-size:16px}
+.pcard p{margin:0;font-size:14px;color:var(--muted)}
+.pcard .go{font-size:13px;color:var(--accent);margin-top:auto}
+
+/* 術語小字典 */
+.term{all:unset;cursor:help;border-bottom:1px dashed currentColor;color:inherit}
+.term:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px}
+.term-pop{position:fixed;z-index:60;max-width:min(300px,calc(100vw - 16px));background:var(--ink);color:var(--surface);font-size:14px;line-height:1.6;
+  padding:10px 12px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,.2)}
+.term-pop b{display:block;margin-bottom:2px}
+/* 一句話總結 */
+.summary{margin:12px 0 4px;padding:12px 14px;border-radius:12px;background:var(--surface-2)}
+.summary small{display:block;color:var(--muted);font-size:12px}
+.verdict{font-weight:700;font-size:17px}
+.verdict.up{color:var(--up)} .verdict.down{color:var(--down)}
+.ctags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ctag{font-size:13px;padding:1px 10px;border-radius:999px;background:var(--surface);border:1px solid var(--line);white-space:nowrap}
+.ctag.up{color:var(--up);background:var(--up-soft);border-color:transparent}
+.ctag.down{color:var(--down);background:var(--down-soft);border-color:transparent}
+details.more{margin-top:10px}
+details.more>summary{cursor:pointer;color:var(--accent);font-size:15px;padding:6px 0;list-style:none;display:flex;align-items:center;gap:6px}
+details.more>summary::-webkit-details-marker{display:none}
+details.more>summary::before{content:"▸";transition:transform .15s}
+details.more[open]>summary::before{transform:rotate(90deg)}
+/* 手機浮動卡 */
+.sheet{position:fixed;left:8px;right:8px;bottom:8px;z-index:40;background:var(--surface);border:1px solid var(--line);border-radius:16px;
+  box-shadow:0 -4px 24px rgba(0,0,0,.15);padding:10px 14px calc(12px + env(safe-area-inset-bottom));
+  transform:translateY(calc(100% + 24px));visibility:hidden;transition:transform .2s,visibility 0s .2s}
+.sheet.show{transform:none;visibility:visible;transition:transform .2s}
+.sheet-head{display:flex;align-items:center;gap:10px}
+.sheet-head b{font-size:16px}
+.sheet-close{margin-left:auto;border:0;background:none;font-size:24px;line-height:1;color:var(--muted);cursor:pointer;min-width:40px;min-height:40px}
+.sheet .sum{margin:0 0 10px;font-size:15px}
+.sheet .sum .verdict{font-size:15px}
+.sheet-btns{display:flex;gap:8px}
+.sheet-btns .btn{flex:1;padding:8px 6px}
+@media (min-width:901px){.sheet{display:none}}
+/* 新手引導 */
+.tour-block{position:fixed;inset:0;z-index:69}
+.tour-spot{position:fixed;z-index:70;border-radius:14px;box-shadow:0 0 0 9999px rgba(10,12,16,.58);pointer-events:none;transition:all .25s}
+.tour-bubble{position:fixed;z-index:71;width:min(340px,calc(100vw - 32px));background:var(--surface);color:var(--ink);border-radius:14px;padding:16px;
+  box-shadow:0 10px 30px rgba(0,0,0,.25);border:1px solid var(--line)}
+.tour-bubble h3{margin:0 0 4px;font-size:17px}
+.tour-bubble p{margin:0;font-size:15px;color:var(--muted)}
+.tour-foot{display:flex;align-items:center;gap:8px;margin-top:14px}
+.tour-foot .step{font-size:13px;color:var(--faint);margin-right:auto}
+.lede-actions{margin:12px 0 0}
+
+footer{padding:40px 0 48px;color:var(--faint);font-size:13px;border-top:1px solid var(--line);margin-top:40px}
+
+@media (max-width:1000px){
+  .lab{grid-template-columns:minmax(200px,260px) minmax(0,1fr)}
+  .lab-out{grid-column:1 / -1}
+}
+@media (max-width:900px){
+  .chart-layout{grid-template-columns:1fr}
+  .explain{position:static;max-height:none}
+  .anatomy{grid-template-columns:1fr}
+  .drawers{grid-template-columns:1fr}
+  .only-narrow{display:inline}
+}
+@media (max-width:600px){
+  .lab{grid-template-columns:1fr;padding:16px}
+  .lab-fig{position:sticky;top:46px;z-index:5;background:var(--surface);margin:-4px -4px 0;padding:4px}
+  .lab-fig svg{max-height:240px}
+  .lab-fig text{font-size:16px}
+  .ohlc-grid b{font-size:14px}
+}
+</style>
+</head>
+<body>
+
+<header class="top wrap">
+  <div class="brand">
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+      <rect x="0" y="0" width="40" height="40" rx="10" fill="var(--surface-2)"/>
+      <line x1="13" y1="7" x2="13" y2="31" stroke="var(--up)" stroke-width="2" stroke-linecap="round"/>
+      <rect x="9" y="12" width="8" height="13" rx="1.5" fill="var(--up)"/>
+      <line x1="27" y1="10" x2="27" y2="34" stroke="var(--down)" stroke-width="2" stroke-linecap="round"/>
+      <rect x="23" y="15" width="8" height="12" rx="1.5" fill="var(--down)"/>
+    </svg>
+    <h1>K 線翻譯機</h1>
+  </div>
+  <p class="lede">把 K 線圖上的每一根 K 棒、每一條線，翻譯成看得懂的說明。先自己動手做一根 K 棒，再到虛構的「教學股」上逐日播放、點圖看解說。不需要任何財經基礎。</p>
+  <p class="lede-actions"><button class="btn sm" id="tourBtn">第一次來？看操作引導</button></p>
+</header>
+
+<nav class="toc" aria-label="頁面目錄">
+  <div class="wrap">
+    <a href="#basics">① K 棒是什麼</a>
+    <a href="#lab">② K 棒實驗室</a>
+    <a href="#chart-sec">③ 逐日看走勢</a>
+    <a href="#patterns">④ 型態小教室</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ① 基礎 -->
+<section id="basics">
+  <h2><span class="num">①</span>一根 K 棒在說什麼</h2>
+  <p class="sub">每一根 K 棒代表一天的價格變化，用四個價格畫成：開盤價、收盤價、最高價、最低價。</p>
+  <div class="card anatomy">
+    <svg viewBox="0 0 520 280" role="img" aria-label="紅K與綠K構造示意圖">
+      <text x="130" y="18" text-anchor="middle" class="lbl-strong">紅 K（收盤 &gt; 開盤）</text>
+      <line x1="130" y1="40" x2="130" y2="250" stroke="var(--up)" stroke-width="3" stroke-linecap="round"/>
+      <rect x="105" y="85" width="50" height="105" rx="3" fill="var(--up)"/>
+      <line class="leader" x1="134" y1="40" x2="190" y2="40"/><text x="194" y="44">最高價</text>
+      <line class="leader" x1="157" y1="85" x2="190" y2="85"/><text x="194" y="89" class="lbl-strong">收盤價</text>
+      <line class="leader" x1="157" y1="190" x2="190" y2="190"/><text x="194" y="194" class="lbl-strong">開盤價</text>
+      <line class="leader" x1="134" y1="250" x2="190" y2="250"/><text x="194" y="254">最低價</text>
+      <text x="96" y="66" text-anchor="end">上影線</text>
+      <text x="96" y="142" text-anchor="end">實體</text>
+      <text x="96" y="224" text-anchor="end">下影線</text>
+      <text x="390" y="18" text-anchor="middle" class="lbl-strong">綠 K（收盤 &lt; 開盤）</text>
+      <line x1="390" y1="40" x2="390" y2="250" stroke="var(--down)" stroke-width="3" stroke-linecap="round"/>
+      <rect x="365" y="70" width="50" height="130" rx="3" fill="var(--down)"/>
+      <line class="leader" x1="394" y1="40" x2="450" y2="40"/><text x="454" y="44">最高價</text>
+      <line class="leader" x1="417" y1="70" x2="450" y2="70"/><text x="454" y="74" class="lbl-strong">開盤價</text>
+      <line class="leader" x1="417" y1="200" x2="450" y2="200"/><text x="454" y="204" class="lbl-strong">收盤價</text>
+      <line class="leader" x1="394" y1="250" x2="450" y2="250"/><text x="454" y="254">最低價</text>
+    </svg>
+    <div>
+      <ul>
+        <li><b>實體</b>：開盤價到收盤價之間的方塊。越長，代表當天從開盤到收盤的變化越大。</li>
+        <li><span class="pill up">紅 K</span> 收盤價高於開盤價，當天價格整體往上走。</li>
+        <li><span class="pill down">綠 K</span> 收盤價低於開盤價，當天價格整體往下走（也常稱為黑 K）。</li>
+        <li><b>上影線／下影線</b>：實體上下的細線，代表盤中曾經到過、但收盤時沒有守住的價格。</li>
+      </ul>
+      <div class="note">台灣習慣<b>紅漲綠跌</b>，美股等海外市場通常相反（綠漲紅跌）。看國外網站的圖表時要特別注意。</div>
+    </div>
+  </div>
+</section>
+
+<!-- ② 實驗室 -->
+<section id="lab">
+  <h2><span class="num">②</span>K 棒實驗室</h2>
+  <p class="sub">拖動拉桿，自己做出一根 K 棒。K 棒的形狀和右邊的說明會跟著即時改變。</p>
+  <div class="card lab">
+    <div class="lab-fig"><svg id="labSvg" viewBox="0 0 300 330" role="img" aria-label="自訂 K 棒"></svg></div>
+    <div class="lab-ctrl">
+      <div class="presets" id="presets"></div>
+      <div id="labSliders"></div>
+      <p class="fine">最高價不能低於開盤和收盤，最低價不能高於開盤和收盤，拉桿會自動擋住或推開。</p>
+    </div>
+    <div class="lab-out" id="labOut" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ③ 圖表 -->
+<section id="chart-sec">
+  <h2><span class="num">③</span>逐日看走勢，點 K 棒看解說</h2>
+  <p class="sub">教學股「白話科技」的虛構走勢。按播放可以一天一天往前看，也可以拖時間軸；點任一根 K 棒，說明欄會解釋當天的狀況。</p>
+
+  <div class="toolbar" id="toolbar"></div>
+
+  <div class="card playbar">
+    <button class="btn primary playbtn" id="playBtn">▶ 逐日播放</button>
+    <div class="timeline">
+      <input type="range" id="timeline" min="1" value="1" aria-label="時間軸">
+      <span class="prog" id="prog"></span>
+    </div>
+    <select id="speed" aria-label="播放速度">
+      <option value="800">慢</option><option value="400" selected>中</option><option value="150">快</option>
+    </select>
+    <button class="btn" id="showAll">顯示全部</button>
+    <button class="btn" id="newStock" title="重新產生一支虛構股票">換一支教學股</button>
+  </div>
+
+  <div class="drawers">
+    <details class="card drawer params">
+      <summary>調整指標天數</summary>
+      <div id="paramSliders"></div>
+      <div class="row-end">
+        <p>天數越短，線越貼近股價、反應越快，但也越容易來回打轉；天數越長則越平滑、反應越慢。</p>
+        <button class="btn sm" id="paramReset">恢復預設</button>
+      </div>
+    </details>
+    <details class="card drawer">
+      <summary>這些指標是什麼？</summary>
+      <div class="gloss-grid" id="glossary"></div>
+    </details>
+  </div>
+
+  <div class="chart-layout">
+    <div class="card chart-box" id="chartBox">
+      <div class="legend-bar" id="legendBar"></div>
+      <div id="chart"></div>
+      <div class="chart-hint">提示：可以左右拖曳移動、滾輪或雙指縮放。<span class="only-narrow">說明在圖表下方。</span></div>
+    </div>
+    <aside class="card explain" id="explain" aria-live="polite"></aside>
+  </div>
+</section>
+
+<!-- ④ 型態 -->
+<section id="patterns">
+  <h2><span class="num">④</span>型態小教室</h2>
+  <p class="sub">點卡片後，圖表會跳到教學股裡的實際例子，並自動打開需要的指標。</p>
+  <div class="pattern-grid" id="patternGrid"></div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    本網站僅供教學使用。「白話科技」為虛構股票，圖表資料由程式產生，不代表任何真實公司；
+    內容中的指標解讀是常見說法，不是保證的買賣訊號，也不構成任何投資建議。<br>
+    圖表：<a href="https://github.com/tradingview/lightweight-charts" target="_blank" rel="noopener">TradingView Lightweight Charts</a>
+  </div>
+</footer>
+
+<div class="sheet" id="sheet" role="region" aria-label="當天重點" aria-hidden="true">
+  <div class="sheet-head"><b id="sheetDate"></b><span class="chg" id="sheetChg"></span>
+    <button class="sheet-close" id="sheetClose" aria-label="關閉">×</button></div>
+  <p class="sum" id="sheetSum"></p>
+  <div class="sheet-btns"><button class="btn" id="sheetPrev">← 前一天</button><button class="btn primary" id="sheetFull">完整說明</button><button class="btn" id="sheetNext">後一天 →</button></div>
+</div>
+<div class="term-pop" id="termPop" role="tooltip" hidden></div>
+<div id="tour" hidden>
+  <div class="tour-block"></div><div class="tour-spot" id="tourSpot"></div>
+  <div class="tour-bubble" id="tourBubble" role="dialog" aria-modal="true" aria-labelledby="tourTitle"></div>
+</div>
+
+<script>
+/* ================= 資料：虛構教學股 ================= */
+// DATA-START
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function makeGauss(r){return function(){let u=0,v=0;while(!u)u=r();while(!v)v=r();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}}
+const round2 = x => Math.round(x*100)/100;
+
+function generateStock(seed){
+  const r = mulberry32(seed), g = makeGauss(r);
+  // 走勢階段：[天數, 每日平均漲跌]
+  const regimes = [[30,0.000],[30,0.009],[18,0.000],[30,-0.009],[32,0.006]];
+  const drift = []; regimes.forEach(([n,d])=>{for(let i=0;i<n;i++)drift.push(d)});
+  const N = drift.length;
+  // 刻意安排的教學日：強制當天漲跌與成交量
+  const special = { 86:{ret:-0.058,vol:2.6}, 112:{ret:0.066,vol:3.3} };
+  const t=[],o=[],h=[],l=[],c=[],v=[];
+  let d = new Date(Date.UTC(2026,0,5)), prev = 50;
+  for(let i=0;i<N;i++){
+    while(d.getUTCDay()===0||d.getUTCDay()===6) d.setUTCDate(d.getUTCDate()+1);
+    t.push(d.toISOString().slice(0,10));
+    d.setUTCDate(d.getUTCDate()+1);
+    const sp = special[i];
+    const ret = sp ? sp.ret : drift[i] + 0.012*g();
+    const close = prev*(1+ret);
+    const open = sp ? prev*(1+(ret>0?0.002:-0.002)) : prev*(1+0.003*g());
+    const hi = Math.max(open,close)*(1+Math.abs(g())*(sp?0.002:0.005));
+    const lo = Math.min(open,close)*(1-Math.abs(g())*(sp?0.002:0.005));
+    const vol = 4000*(1+0.2*g())*(1+18*Math.abs(ret))*(sp?sp.vol:1);
+    o.push(open);h.push(hi);l.push(lo);c.push(close);v.push(Math.max(800,vol));
+    prev = close;
+  }
+  // 刻意安排的 K 棒形狀（只改開高低，不改收盤，走勢保持連續）
+  const shape = (i, kind) => {
+    const cl = c[i];
+    if(kind==='upper'){ o[i]=cl*0.99; h[i]=cl*1.05; l[i]=cl*0.987; v[i]*=1.9; }
+    if(kind==='lower'){ o[i]=cl*1.01; h[i]=cl*1.013; l[i]=cl*0.95; v[i]*=1.7; }
+    if(kind==='doji'){  o[i]=cl*1.0006; h[i]=cl*1.017; l[i]=cl*0.984; }
+  };
+  shape(76,'upper'); shape(107,'lower'); shape(46,'doji'); shape(79,'doji');
+  const rows = [];
+  for(let i=0;i<N;i++) rows.push({time:t[i],open:round2(o[i]),high:round2(h[i]),low:round2(l[i]),close:round2(c[i]),volume:Math.round(v[i])});
+  rows.forEach(x=>{x.high=Math.max(x.high,x.open,x.close);x.low=Math.min(x.low,x.open,x.close)});
+  return rows;
+}
+
+function sma(arr,n){return arr.map((_,i)=>{if(i<n-1)return null;let s=0;for(let j=i-n+1;j<=i;j++)s+=arr[j];return s/n})}
+function rsiCalc(c,n=14){
+  const out=Array(c.length).fill(null); if(c.length<=n) return out;
+  let g=0,ls=0;
+  for(let i=1;i<=n;i++){const d=c[i]-c[i-1]; if(d>0)g+=d; else ls-=d;}
+  let ag=g/n, al=ls/n;
+  const val=()=> al===0?100:100-100/(1+ag/al);
+  out[n]=val();
+  for(let i=n+1;i<c.length;i++){
+    const d=c[i]-c[i-1];
+    ag=(ag*(n-1)+Math.max(d,0))/n; al=(al*(n-1)+Math.max(-d,0))/n;
+    out[i]=val();
+  }
+  return out;
+}
+function kdCalc(h,l,c,n=9){
+  const K=Array(c.length).fill(null), D=Array(c.length).fill(null);
+  let k=50,d=50;
+  for(let i=n-1;i<c.length;i++){
+    let hh=-Infinity,ll=Infinity;
+    for(let j=i-n+1;j<=i;j++){hh=Math.max(hh,h[j]);ll=Math.min(ll,l[j]);}
+    const rsv = hh===ll?50:(c[i]-ll)/(hh-ll)*100;
+    k = k*2/3 + rsv/3; d = d*2/3 + k/3;
+    K[i]=k; D[i]=d;
+  }
+  return {K,D};
+}
+const DEFAULT_P = {maS:5, maL:20, rsi:14, kd:9};
+function buildData(rows,P){
+  const o=rows.map(r=>r.open),h=rows.map(r=>r.high),l=rows.map(r=>r.low),c=rows.map(r=>r.close),v=rows.map(r=>r.volume);
+  const vavg5 = v.map((_,i)=> i<5?null:(v[i-5]+v[i-4]+v[i-3]+v[i-2]+v[i-1])/5); // 不含當天的前 5 日平均
+  const {K,D} = kdCalc(h,l,c,P.kd);
+  return {rows,t:rows.map(r=>r.time),o,h,l,c,v,vavg5,maS:sma(c,P.maS),maL:sma(c,P.maL),rsi:rsiCalc(c,P.rsi),k:K,d:D,N:rows.length};
+}
+
+/* K 棒形狀分類 */
+function shapeOf(o,h,l,c){
+  const range=h-l||1e-9, body=Math.abs(c-o), upper=h-Math.max(o,c), lower=Math.min(o,c)-l;
+  let kind='normal';
+  if(body<=0.1*range && range/c>=0.012) kind='doji';
+  else if(upper>=2*body && upper>=0.5*range && range/c>=0.015) kind='longUpper';
+  else if(lower>=2*body && lower>=0.5*range && range/c>=0.015) kind='longLower';
+  else if(body>=0.7*range && body/o>=0.03) kind = c>o?'bigUp':'bigDown';
+  return {kind,range,body,upper,lower};
+}
+const candleShape = (D,i) => shapeOf(D.o[i],D.h[i],D.l[i],D.c[i]);
+
+/* 型態搜尋：回傳教學股中最具代表性的那一天 */
+function argBest(N,score){let bi=-1,bs=-Infinity;for(let i=0;i<N;i++){const s=score(i);if(s!=null&&s>bs){bs=s;bi=i}}return bi}
+function crosses(a,b,i,dir){ if(i<1||a[i]==null||b[i]==null||a[i-1]==null||b[i-1]==null) return false;
+  return dir>0 ? (a[i-1]<=b[i-1] && a[i]>b[i]) : (a[i-1]>=b[i-1] && a[i]<b[i]); }
+const FINDERS = {
+  redK:     D=>argBest(D.N,i=>D.c[i]>D.o[i]?(D.c[i]-D.o[i])/D.o[i]:null),
+  greenK:   D=>argBest(D.N,i=>D.c[i]<D.o[i]?(D.o[i]-D.c[i])/D.o[i]:null),
+  longUpper:D=>argBest(D.N,i=>{const s=candleShape(D,i);return s.kind==='longUpper'?s.upper/D.c[i]:null}),
+  longLower:D=>argBest(D.N,i=>{const s=candleShape(D,i);return s.kind==='longLower'?s.lower/D.c[i]:null}),
+  doji:     D=>argBest(D.N,i=>{const s=candleShape(D,i);return s.kind==='doji'?s.range/D.c[i]:null}),
+  volSpike: D=>argBest(D.N,i=>D.vavg5[i]?D.v[i]/D.vavg5[i]:null),
+  maGold:   D=>argBest(D.N,i=>crosses(D.maS,D.maL,i,1)&&i+10<D.N?(D.c[i+10]-D.c[i])/D.c[i]:null),
+  maDeath:  D=>argBest(D.N,i=>crosses(D.maS,D.maL,i,-1)&&i+10<D.N?(D.c[i]-D.c[i+10])/D.c[i]:null),
+  rsiHot:   D=>argBest(D.N,i=>D.rsi[i]!=null&&D.rsi[i]>70?D.rsi[i]:null),
+  rsiCold:  D=>argBest(D.N,i=>D.rsi[i]!=null&&D.rsi[i]<30?-D.rsi[i]:null),
+  kdGold:   D=>argBest(D.N,i=>crosses(D.k,D.d,i,1)&&D.k[i]<30?-D.k[i]:null),
+  kdDeath:  D=>argBest(D.N,i=>crosses(D.k,D.d,i,-1)&&D.k[i]>70?D.k[i]:null),
+};
+// DATA-END
+
+/* ================= 狀態 ================= */
+const STATE = { ind:{maS:true,maL:true,vol:true,rsi:false,kd:false}, hollow:false, P:{...DEFAULT_P}, seed:20261013, view:0, sel:0 };
+try{ const s=JSON.parse(localStorage.getItem('kline-v2')||'null');
+  if(s){ Object.assign(STATE.ind,s.ind||{}); STATE.hollow=!!s.hollow; Object.assign(STATE.P,s.P||{}); } }catch(e){}
+function saveSettings(){ try{ localStorage.setItem('kline-v2',JSON.stringify({ind:STATE.ind,hollow:STATE.hollow,P:STATE.P})) }catch(e){} }
+let ROWS = generateStock(STATE.seed);
+let DATA = buildData(ROWS,STATE.P);
+STATE.view = DATA.N; STATE.sel = DATA.N-1;
+const REPLAY_START = 30;
+
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const fmt = x => x==null?'—':x.toFixed(2);
+const fmtVol = x => Math.round(x).toLocaleString('zh-TW');
+const clamp = (x,a,b) => Math.max(a,Math.min(b,x));
+const WEEK = ['日','一','二','三','四','五','六'];
+const fmtDate = s => { const d=new Date(s+'T00:00:00Z'); return `${s.replaceAll('-','/')}（${WEEK[d.getUTCDay()]}）`; };
+
+/* ================= 術語小字典 ================= */
+const GLOSSARY = {
+  '實體':'開盤價到收盤價之間的方塊。越長，代表當天從開盤到收盤的價格變化越大。',
+  '上影線':'實體上方的細線。頂端是盤中曾經漲到、但收盤時沒有守住的最高價。',
+  '下影線':'實體下方的細線。底端是盤中曾經跌到、但收盤前被拉回的最低價。',
+  '十字線':'實體非常短的 K 棒，開盤和收盤幾乎一樣，代表買賣雙方力量相當。',
+  '全天波動':'當天最高價和最低價的差距，也叫振幅。',
+  '跳空':'今天的開盤價和前一天的收盤價差距明顯，圖上兩根 K 棒之間會出現空隙。',
+  '張':'台股的交易單位，1 張 = 1,000 股。',
+  '放量':'成交量明顯比平常大，代表參與交易的人變多。',
+  '量縮':'成交量明顯比平常小，代表交易比平常冷清。',
+  '均線':'最近 N 天收盤價的平均，可以想成這段期間買進的人的平均成本。',
+  '黃金交叉':'天數短的線由下往上穿過天數長的線，常被視為轉強的訊號。',
+  '死亡交叉':'天數短的線由上往下穿過天數長的線，常被視為轉弱的訊號。',
+  'RSI':'相對強弱指標（0～100），比較最近一段時間上漲和下跌的幅度。',
+  '過熱':'RSI 高於 70，表示短期漲多了。強勢股可能維持一段時間，不代表馬上會跌。',
+  '過冷':'RSI 低於 30，表示短期跌多了。弱勢股可能繼續跌，不代表馬上會漲。',
+  'KD':'隨機指標（0～100），看收盤價落在最近一段期間高低區間的哪個位置。K 線反應快、D 線反應慢。',
+  '高檔':'KD 高於 80，收盤價接近最近一段期間的高點。',
+  '低檔':'KD 低於 20，收盤價接近最近一段期間的低點。',
+};
+const term = (k,label=k) => `<button type="button" class="term" data-term="${k}">${label}</button>`;
+
+/* ================= 共用：一根 K 棒的白話說明 ================= */
+function changeInfo(c,pc){
+  const diff=c-pc, p=(c-pc)/pc*100;
+  const cls = Math.abs(diff)<0.005?'flat':diff>0?'up':'down';
+  return {diff,p,cls,word:cls==='flat'?'持平':cls==='up'?'上漲':'下跌'};
+}
+function candleText(o,h,l,c,pc){
+  const s=shapeOf(o,h,l,c);
+  let k='';
+  if(c>o) k+=`<p><span class="pill up">紅 K</span> 收盤價高於開盤價，代表從開盤到收盤，價格整體往上走了 ${(c-o).toFixed(2)} 元。</p>`;
+  else if(c<o) k+=`<p><span class="pill down">綠 K</span> 收盤價低於開盤價，代表從開盤到收盤，價格整體往下走了 ${(o-c).toFixed(2)} 元。</p>`;
+  else k+=`<p><span class="pill flat">平盤</span> 收盤價與開盤價相同。</p>`;
+  const share = x => Math.round(x/s.range*100);
+  const SHAPE = {
+    doji:`這是一根<b>${term('十字線')}</b>：${term('實體')}非常短，開盤價和收盤價幾乎一樣。盤中雖然上下波動了 ${s.range.toFixed(2)} 元，收盤時卻回到原點，表示買賣雙方力量差不多，常被解讀為市場在猶豫、方向還不明確。`,
+    longUpper:`<b>${term('上影線')}很長</b>（${s.upper.toFixed(2)} 元，占${term('全天波動')}的 ${share(s.upper)}%）：盤中曾經漲到 ${fmt(h)} 元，但收盤前被賣壓壓回。常被解讀為較高的價位有人在賣出，上漲遇到阻力。`,
+    longLower:`<b>${term('下影線')}很長</b>（${s.lower.toFixed(2)} 元，占${term('全天波動')}的 ${share(s.lower)}%）：盤中曾經跌到 ${fmt(l)} 元，但收盤前被買盤拉回。常被解讀為較低的價位有人願意買進，下跌時有支撐。`,
+    bigUp:`<b>${term('實體')}很長、影線很短</b>：價格幾乎從開盤一路漲到收盤，中途沒有明顯回落，代表買方力道強。`,
+    bigDown:`<b>${term('實體')}很長、影線很短</b>：價格幾乎從開盤一路跌到收盤，中途沒有明顯反彈，代表賣方力道強。`,
+    normal:`${term('實體')}與${term('上影線')}、${term('下影線')}的長度都不算特別，沒有明顯的型態。`,
+  };
+  k+=`<p>${SHAPE[s.kind]}</p>`;
+  const tip='<b>K 棒顏色比的是「今天開盤 vs. 今天收盤」，漲跌比的是「今天收盤 vs. 前一天收盤」</b>，兩者不一定相同。';
+  if(pc!=null && c>o && c<pc-0.005)
+    k+=`<p class="warn">注意：這根是紅 K，但收盤價其實比前一天低。因為今天一開盤就比前一天收盤低（${term('跳空','跳空開低')}），盤中雖然往上走，仍沒有回到前一天的價位。${tip}</p>`;
+  if(pc!=null && c<o && c>pc+0.005)
+    k+=`<p class="warn">注意：這根是綠 K，但收盤價其實比前一天高。因為今天一開盤就比前一天收盤高（${term('跳空','跳空開高')}），盤中雖然往下走，仍守在前一天的價位之上。${tip}</p>`;
+  return k;
+}
+
+/* ================= ② K 棒實驗室 ================= */
+const LAB = {pc:100,o:100,h:106,l:98,c:104};
+const LAB_MIN=88, LAB_MAX=112;
+const LAB_PRESETS = [
+  {name:'長紅 K',     v:{pc:100,o:100.5,h:108.3,l:100.2,c:108}},
+  {name:'長綠 K',     v:{pc:107,o:107.5,h:107.8,l:99.6,c:100}},
+  {name:'長上影線',   v:{pc:100,o:100,h:109,l:99.6,c:101}},
+  {name:'長下影線',   v:{pc:101,o:101,h:101.4,l:92,c:100.5}},
+  {name:'十字線',     v:{pc:100,o:100,h:104,l:96,c:100.05}},
+  {name:'紅 K 卻下跌', v:{pc:105,o:98,h:101.8,l:97.5,c:101}},
+];
+const LAB_FIELDS = [
+  {k:'pc',name:'前日收盤',dot:'var(--faint)'},
+  {k:'o', name:'開盤',dot:'var(--ink)'},
+  {k:'h', name:'最高',dot:'var(--ink)'},
+  {k:'l', name:'最低',dot:'var(--ink)'},
+  {k:'c', name:'收盤',dot:'var(--accent)'},
+];
+function renderLabControls(){
+  document.getElementById('presets').innerHTML = LAB_PRESETS.map((p,i)=>`<button class="btn sm" data-preset="${i}">${p.name}</button>`).join('');
+  document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click',()=>{
+    Object.assign(LAB,LAB_PRESETS[+b.dataset.preset].v); syncLab();
+    document.querySelectorAll('[data-preset]').forEach(x=>x.classList.toggle('on',x===b));
+  }));
+  document.getElementById('labSliders').innerHTML = LAB_FIELDS.map(f=>`
+    <label class="sl"><span class="nm"><span class="dot" style="background:${f.dot}"></span>${f.name}</span>
+      <input type="range" min="${LAB_MIN}" max="${LAB_MAX}" step="0.1" data-lab="${f.k}" aria-label="${f.name}">
+      <output id="labv-${f.k}"></output></label>`).join('');
+  document.querySelectorAll('[data-lab]').forEach(el=>el.addEventListener('input',()=>{
+    const k=el.dataset.lab, v=+el.value;
+    if(k==='o'||k==='c'){ LAB[k]=v; LAB.h=Math.max(LAB.h,LAB.o,LAB.c); LAB.l=Math.min(LAB.l,LAB.o,LAB.c); }
+    else if(k==='h'){ LAB.h=Math.max(v,LAB.o,LAB.c); }
+    else if(k==='l'){ LAB.l=Math.min(v,LAB.o,LAB.c); }
+    else LAB.pc=v;
+    document.querySelectorAll('[data-preset]').forEach(x=>x.classList.remove('on'));
+    syncLab();
+  }));
+}
+function syncLab(){
+  LAB_FIELDS.forEach(f=>{
+    const el=document.querySelector(`[data-lab="${f.k}"]`); el.value=LAB[f.k];
+    document.getElementById('labv-'+f.k).textContent=LAB[f.k].toFixed(1);
+  });
+  drawLab(); renderLabOut();
+}
+function drawLab(){
+  const {pc,o,h,l,c}=LAB, top=18, bot=312, cx=140, bw=56;
+  const y=v=>top+(LAB_MAX-v)/(LAB_MAX-LAB_MIN)*(bot-top);
+  const col = c>o?'var(--up)':c<o?'var(--down)':'var(--muted)';
+  const fill = (STATE.hollow && c>o) ? 'var(--surface)' : col;
+  let svg='';
+  for(let v=Math.ceil(LAB_MIN/5)*5; v<=LAB_MAX; v+=5){
+    svg+=`<line x1="34" x2="296" y1="${y(v)}" y2="${y(v)}" stroke="var(--grid)"/>
+          <text x="28" y="${y(v)+4}" text-anchor="end">${v}</text>`;
+  }
+  svg+=`<line x1="40" x2="196" y1="${y(pc)}" y2="${y(pc)}" stroke="var(--faint)" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="40" y="${y(pc)-5}">前日收盤</text>`;
+  const bt=y(Math.max(o,c)), bb=y(Math.min(o,c));
+  svg+=`<line x1="${cx}" x2="${cx}" y1="${y(h)}" y2="${y(l)}" stroke="${col}" stroke-width="3" stroke-linecap="round"/>
+        <rect x="${cx-bw/2}" y="${bt}" width="${bw}" height="${Math.max(2,bb-bt)}" rx="3" fill="${fill}" stroke="${col}" stroke-width="2"/>`;
+  // 右側數值標籤，彼此太近時往上下推開
+  const items=[{n:'最高',v:h,x:cx+3},{n:'開盤',v:o,x:cx+bw/2+1},{n:'收盤',v:c,x:cx+bw/2+1},{n:'最低',v:l,x:cx+3}]
+    .map(it=>({...it,ty:y(it.v)})).sort((a,b)=>a.ty-b.ty || (a.n==='最高'?-1:b.n==='最高'?1:a.n==='最低'?1:-1));
+  const GAP=17;
+  for(let i=1;i<items.length;i++) if(items[i].ty<items[i-1].ty+GAP) items[i].ty=items[i-1].ty+GAP;
+  const over = items[items.length-1].ty - (bot+4);
+  if(over>0) items.forEach(it=>it.ty-=over);
+  items.forEach(it=>{
+    svg+=`<polyline points="${it.x+2},${y(it.v)} 200,${y(it.v)} 210,${it.ty}" fill="none" stroke="var(--faint)" stroke-dasharray="2 3"/>
+          <text x="214" y="${it.ty+4}">${it.n} <tspan class="val">${it.v.toFixed(1)}</tspan></text>`;
+  });
+  document.getElementById('labSvg').innerHTML=svg;
+}
+function renderLabOut(){
+  const {pc,o,h,l,c}=LAB, s=shapeOf(o,h,l,c), ch=changeInfo(c,pc);
+  const pct=x=>s.range<1e-6?0:x/s.range*100;
+  const bodyCol = c>o?'var(--up)':c<o?'var(--down)':'var(--muted)';
+  const seg=(cls,w,txt,style='')=>`<div class="${cls}" style="flex-grow:${Math.max(w,0.001)};${style}">${w>=14?txt:''}</div>`;
+  document.getElementById('labOut').innerHTML = `
+    <h4>這根 K 棒的意思</h4>
+    <p>收盤 ${c.toFixed(1)}，比前一天 <span class="chg ${ch.cls}">${ch.cls==='flat'?'持平':`${ch.word} ${Math.abs(ch.diff).toFixed(2)}（${ch.p>0?'+':''}${ch.p.toFixed(2)}%）`}</span>。全天最高和最低相差 ${s.range.toFixed(1)} 元。</p>
+    <div class="propbar" aria-label="上影線、實體、下影線占全天波動的比例">
+      ${seg('shadow',pct(s.upper),'上影線')}${seg('',pct(s.body),'實體','background:'+bodyCol)}${seg('shadow',pct(s.lower),'下影線')}
+    </div>
+    <div class="proplegend"><span>上影線 ${Math.round(pct(s.upper))}%</span><span>實體 ${Math.round(pct(s.body))}%</span><span>下影線 ${Math.round(pct(s.lower))}%</span></div>
+    ${candleText(o,h,l,c,pc)}`;
+}
+
+/* ================= ③ 工具列、參數與說明 ================= */
+const INDICATORS = [
+  {key:'maS', label:()=>`${STATE.P.maS} 日均線`, color:'--ma5'},
+  {key:'maL', label:()=>`${STATE.P.maL} 日均線`, color:'--ma20'},
+  {key:'vol', label:()=>'成交量', color:null},
+  {key:'rsi', label:()=>'RSI', color:'--rsi'},
+  {key:'kd',  label:()=>'KD', color:'--k'},
+];
+const GLOSS = [
+  ['均線','最近 N 個交易日收盤價的平均，大約是「這段期間買進的人的平均成本」。收盤價在均線之上，代表這段期間買進的人平均是賺錢的。短均線往上穿過長均線稱為「黃金交叉」，往下穿過稱為「死亡交叉」。'],
+  ['成交量','當天總共成交了多少張股票（1 張 = 1,000 股）。成交量越大，代表參與的人越多；價格變化如果伴隨大量，通常被認為比較有代表性。'],
+  ['RSI','相對強弱指標，範圍 0～100。比較最近 N 天「上漲幅度」與「下跌幅度」的比例。高於 70 常被視為過熱（漲多了），低於 30 常被視為過冷（跌多了）。'],
+  ['KD','隨機指標，範圍 0～100，看收盤價落在最近 N 天高低區間的哪個位置。K 線反應快、D 線反應慢；K 往上穿過 D 稱為黃金交叉，往下穿過稱為死亡交叉。高於 80 偏熱，低於 20 偏冷。'],
+];
+document.getElementById('glossary').innerHTML = GLOSS.map(([t,d])=>`<div><b>${t}</b>${d}</div>`).join('');
+
+function renderToolbar(){
+  const tb = document.getElementById('toolbar');
+  tb.innerHTML = INDICATORS.map(it=>`
+    <label class="chip ${STATE.ind[it.key]?'on':''}">
+      <input type="checkbox" data-ind="${it.key}" ${STATE.ind[it.key]?'checked':''}>
+      ${it.color?`<span class="sw" style="background:var(${it.color})"></span>`:''}${it.label()}
+    </label>`).join('') +
+    `<span class="spacer"></span>
+     <label class="chip ${STATE.hollow?'on':''}" title="紅綠不易分辨時使用：上漲畫成空心、下跌畫成實心">
+       <input type="checkbox" id="hollowToggle" ${STATE.hollow?'checked':''}>色弱模式（上漲用空心）
+     </label>`;
+  tb.querySelectorAll('input[data-ind]').forEach(el=>el.addEventListener('change',()=>{
+    STATE.ind[el.dataset.ind]=el.checked; saveSettings(); renderToolbar(); buildChart(); renderExplain();
+  }));
+  document.getElementById('hollowToggle').addEventListener('change',e=>{
+    STATE.hollow=e.target.checked; saveSettings(); renderToolbar(); buildChart(); drawLab();
+  });
+}
+
+const PARAMS = [
+  {k:'maS',name:'短均線天數',min:3,max:20},
+  {k:'maL',name:'長均線天數',min:10,max:60},
+  {k:'rsi',name:'RSI 天數',min:6,max:24},
+  {k:'kd', name:'KD 天數',min:5,max:20},
+];
+function renderParamSliders(){
+  document.getElementById('paramSliders').innerHTML = PARAMS.map(p=>`
+    <label class="sl"><span class="nm">${p.name}</span>
+      <input type="range" min="${p.min}" max="${p.max}" step="1" value="${STATE.P[p.k]}" data-param="${p.k}" aria-label="${p.name}">
+      <output id="pv-${p.k}">${STATE.P[p.k]}</output></label>`).join('');
+  document.querySelectorAll('[data-param]').forEach(el=>el.addEventListener('input',()=>{
+    const k=el.dataset.param; STATE.P[k]=+el.value;
+    if(STATE.P.maL<STATE.P.maS+2){ if(k==='maS') STATE.P.maL=STATE.P.maS+2; else STATE.P.maS=Math.max(3,STATE.P.maL-2); }
+    applyParams();
+  }));
+}
+function syncParamSliders(){
+  PARAMS.forEach(p=>{ document.querySelector(`[data-param="${p.k}"]`).value=STATE.P[p.k]; document.getElementById('pv-'+p.k).textContent=STATE.P[p.k]; });
+}
+function applyParams(){
+  DATA = buildData(ROWS,STATE.P);
+  syncParamSliders(); saveSettings(); renderToolbar(); buildChart(); renderExplain(); renderPatterns();
+}
+document.getElementById('paramReset').addEventListener('click',()=>{ STATE.P={...DEFAULT_P}; applyParams(); });
+
+/* ================= ③ 圖表 ================= */
+const LC = window.LightweightCharts;
+let chart=null, S={}, markers=null, labels=[];
+const MAIN_H = () => window.innerWidth<600 ? 280 : 340;
+const SUB_H = () => window.innerWidth<600 ? 96 : 110;
+
+function buildChart(resetRange=false){
+  const box = document.getElementById('chart');
+  if(!LC){ box.innerHTML='<p style="padding:20px">圖表元件載入失敗，請檢查網路連線後重新整理。</p>'; return; }
+  let range=null;
+  if(chart){ range=chart.timeScale().getVisibleLogicalRange(); chart.remove(); chart=null; }
+  box.querySelectorAll('.pane-label').forEach(n=>n.remove());
+  const subs = ['vol','rsi','kd'].filter(k=>STATE.ind[k]);
+  box.style.height = (MAIN_H() + subs.length*SUB_H()) + 'px';
+
+  chart = LC.createChart(box,{
+    autoSize:true,
+    layout:{background:{type:'solid',color:css('--surface')},textColor:css('--muted'),fontSize:12,
+      fontFamily:getComputedStyle(document.body).fontFamily,attributionLogo:false,
+      panes:{separatorColor:css('--line'),separatorHoverColor:css('--accent-soft'),enableResize:false}},
+    grid:{vertLines:{color:css('--grid')},horzLines:{color:css('--grid')}},
+    rightPriceScale:{borderVisible:false},
+    timeScale:{borderVisible:false,rightOffset:3,minBarSpacing:3},
+    crosshair:{mode:LC.CrosshairMode.Normal},
+    localization:{locale:'zh-TW',dateFormat:'yyyy/MM/dd'},
+  });
+
+  const up=css('--up'), down=css('--down');
+  S = {};
+  S.candle = chart.addSeries(LC.CandlestickSeries,{
+    upColor: STATE.hollow?'rgba(0,0,0,0)':up, downColor:down,
+    borderUpColor:up, borderDownColor:down, wickUpColor:up, wickDownColor:down, borderVisible:true,
+    priceLineVisible:false, lastValueVisible:false, priceFormat:{type:'price',precision:2,minMove:0.01},
+  });
+  markers = LC.createSeriesMarkers(S.candle,[]);
+
+  const line = (color,pane,extra={}) => chart.addSeries(LC.LineSeries,{color,lineWidth:2,priceLineVisible:false,
+    lastValueVisible:false,crosshairMarkerVisible:false,...extra},pane);
+  if(STATE.ind.maS) S.maS = line(css('--ma5'),0);
+  if(STATE.ind.maL) S.maL = line(css('--ma20'),0);
+
+  let pane=0; const paneKeys=['main'];
+  if(STATE.ind.vol){ pane++; paneKeys.push('vol');
+    S.vol=chart.addSeries(LC.HistogramSeries,{priceFormat:{type:'volume'},priceLineVisible:false,lastValueVisible:false},pane); }
+  const fixed = {autoscaleInfoProvider:()=>({priceRange:{minValue:0,maxValue:100}})};
+  const guide = (s,price) => s.createPriceLine({price,color:css('--faint'),lineWidth:1,lineStyle:LC.LineStyle.Dashed,axisLabelVisible:false});
+  if(STATE.ind.rsi){ pane++; paneKeys.push('rsi');
+    S.rsi=line(css('--rsi'),pane,fixed); guide(S.rsi,70); guide(S.rsi,30); }
+  if(STATE.ind.kd){ pane++; paneKeys.push('kd');
+    S.k=line(css('--k'),pane,fixed); S.d=line(css('--d'),pane,fixed); guide(S.k,80); guide(S.k,20); }
+  chart.panes().forEach((p,i)=>p.setStretchFactor(i===0?MAIN_H():SUB_H()));
+  pushData();
+
+  const P=STATE.P;
+  document.getElementById('legendBar').innerHTML = `<span class="ohlc" id="ohlcLegend"></span>`+
+    (STATE.ind.maS?`<span><i style="background:var(--ma5)"></i>MA${P.maS}</span>`:'')+
+    (STATE.ind.maL?`<span><i style="background:var(--ma20)"></i>MA${P.maL}</span>`:'');
+  const LBL = {
+    vol:'<span>成交量（張）</span>',
+    rsi:`<span><i style="background:var(--rsi)"></i>RSI(${P.rsi})　虛線：70 過熱／30 過冷</span>`,
+    kd:`<span><i style="background:var(--k)"></i>K</span><span><i style="background:var(--d)"></i>D</span><span>KD(${P.kd},3,3)　虛線：80／20</span>`,
+  };
+  labels = paneKeys.map(k=>{ if(!LBL[k]) return null; const el=document.createElement('div'); el.className='pane-label'; el.innerHTML=LBL[k]; box.appendChild(el); return el; });
+  requestAnimationFrame(positionLabels);
+
+  if(range && !resetRange) chart.timeScale().setVisibleLogicalRange(range);
+  else if(window.innerWidth>=900) chart.timeScale().fitContent();
+  else chart.timeScale().setVisibleLogicalRange({from:STATE.view-60,to:STATE.view+2});
+
+  chart.subscribeClick(p=>{
+    if(p.logical==null) return;
+    const i=Math.round(p.logical);
+    if(i>=0 && i<STATE.view){ stopPlay(); sheetWanted=true; select(i); }
+  });
+  chart.subscribeCrosshairMove(p=>{
+    const i = p.logical!=null ? Math.round(p.logical) : -1;
+    updateOhlc(i>=0&&i<STATE.view?i:STATE.sel);
+  });
+  updateOhlc(STATE.sel);
+}
+function lineData(arr){ const out=[]; for(let i=0;i<STATE.view;i++) if(arr[i]!=null) out.push({time:DATA.t[i],value:arr[i]}); return out; }
+function pushData(){
+  if(!chart) return;
+  const rows=DATA.rows.slice(0,STATE.view);
+  S.candle.setData(rows.map(r=>({time:r.time,open:r.open,high:r.high,low:r.low,close:r.close})));
+  if(S.maS) S.maS.setData(lineData(DATA.maS));
+  if(S.maL) S.maL.setData(lineData(DATA.maL));
+  if(S.vol){ const upA=css('--up')+'99', downA=css('--down')+'99';
+    S.vol.setData(rows.map(r=>({time:r.time,value:r.volume,color:r.close>=r.open?upA:downA}))); }
+  if(S.rsi) S.rsi.setData(lineData(DATA.rsi));
+  if(S.k){ S.k.setData(lineData(DATA.k)); S.d.setData(lineData(DATA.d)); }
+  updateMarker();
+}
+function positionLabels(){
+  if(!chart) return;
+  const box=document.getElementById('chart').getBoundingClientRect();
+  chart.panes().forEach((p,i)=>{
+    const el=p.getHTMLElement(); if(!el||!labels[i]) return;
+    labels[i].style.top = (el.getBoundingClientRect().top - box.top + 4) + 'px';
+  });
+}
+window.addEventListener('resize',()=>requestAnimationFrame(positionLabels));
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{ buildChart(); drawLab(); });
+
+function updateOhlc(i){
+  const el=document.getElementById('ohlcLegend'); if(!el) return;
+  const r=DATA.rows[i]; const col=r.close>=r.open?'var(--up)':'var(--down)';
+  el.innerHTML=`${r.time.slice(5).replace('-','/')}　開 ${fmt(r.open)}　高 ${fmt(r.high)}　低 ${fmt(r.low)}　收 <b style="color:${col}">${fmt(r.close)}</b>`;
+}
+function updateMarker(){
+  if(!markers) return;
+  markers.setMarkers(STATE.sel<STATE.view?[{time:DATA.t[STATE.sel],position:'aboveBar',color:css('--ink'),shape:'arrowDown',text:'解說中'}]:[]);
+}
+
+function select(i,{scroll=false,center=false,follow=false}={}){
+  STATE.sel=clamp(i,0,STATE.view-1);
+  updateMarker(); updateOhlc(STATE.sel); renderExplain();
+  if(chart){
+    const ts=chart.timeScale(), r=ts.getVisibleLogicalRange();
+    if(follow){
+      const w = window.innerWidth<600 ? 45 : 70;
+      if(!r || STATE.sel>r.to-3 || STATE.sel<r.from) ts.setVisibleLogicalRange({from:STATE.sel-w+5,to:STATE.sel+5});
+    } else if(center || !r || STATE.sel<r.from+1 || STATE.sel>r.to-1){
+      const half = center ? 25 : Math.max(20,(r?r.to-r.from:60)/2);
+      ts.setVisibleLogicalRange({from:STATE.sel-half,to:STATE.sel+half});
+    }
+  }
+  if(scroll) document.getElementById('chart-sec').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+/* ================= ③ 逐日播放 ================= */
+let playTimer=null;
+const tl=document.getElementById('timeline');
+function renderPlaybar(){
+  tl.max=DATA.N; tl.value=STATE.view;
+  document.getElementById('prog').textContent=`第 ${STATE.view} / ${DATA.N} 天`;
+  document.getElementById('playBtn').textContent = playTimer ? '⏸ 暫停' : (STATE.view>=DATA.N ? '▶ 從頭播放' : '▶ 繼續播放');
+  document.getElementById('showAll').disabled = STATE.view>=DATA.N;
+}
+function setView(n){ STATE.view=clamp(n,1,DATA.N); if(STATE.sel>=STATE.view) STATE.sel=STATE.view-1; pushData(); renderPlaybar(); }
+function stepPlay(){
+  if(STATE.view>=DATA.N){ stopPlay(); return; }
+  setView(STATE.view+1); select(STATE.view-1,{follow:true});
+}
+function startPlay(){
+  sheetWanted=true;
+  if(STATE.view>=DATA.N){ setView(REPLAY_START); }
+  select(STATE.view-1,{follow:true});
+  clearInterval(playTimer); playTimer=setInterval(stepPlay,+document.getElementById('speed').value);
+  renderPlaybar();
+}
+function stopPlay(){ if(playTimer){ clearInterval(playTimer); playTimer=null; } renderPlaybar(); }
+document.getElementById('playBtn').addEventListener('click',()=> playTimer?stopPlay():startPlay());
+document.getElementById('speed').addEventListener('change',()=>{ if(playTimer) startPlay(); });
+tl.addEventListener('input',()=>{ const v=+tl.value; stopPlay(); sheetWanted=true; setView(v); select(STATE.view-1,{follow:true}); });
+document.getElementById('showAll').addEventListener('click',()=>{
+  stopPlay(); setView(DATA.N); if(chart){ window.innerWidth>=900 ? chart.timeScale().fitContent() : select(STATE.sel); }
+});
+document.getElementById('newStock').addEventListener('click',()=>{
+  stopPlay();
+  STATE.seed = Math.floor(Math.random()*1e9);
+  ROWS = generateStock(STATE.seed); DATA = buildData(ROWS,STATE.P);
+  STATE.view = DATA.N; STATE.sel = DATA.N-1;
+  buildChart(true); renderExplain(); renderPatterns(); renderPlaybar();
+});
+
+/* ================= ③ 一句話總結 ================= */
+function summarize(i){
+  const D=DATA,P=STATE.P,o=D.o[i],c=D.c[i],pc=i>0?D.c[i-1]:null, s=candleShape(D,i);
+  const tags=[]; let score=0;
+  const KIND={doji:['十字線',''],longUpper:['長上影線','down'],longLower:['長下影線','up'],bigUp:['長紅 K','up'],bigDown:['長綠 K','down']};
+  if(KIND[s.kind]) tags.push({t:KIND[s.kind][0],c:KIND[s.kind][1]});
+  else tags.push(c>o?{t:'紅 K',c:'up'}:c<o?{t:'綠 K',c:'down'}:{t:'平盤',c:''});
+  score += {bigUp:2,bigDown:-2,longUpper:-1,longLower:1,doji:0,normal:c>o?1:c<o?-1:0}[s.kind];
+  if(pc!=null){ const ch=changeInfo(c,pc); score += ch.cls==='up'?1:ch.cls==='down'?-1:0;
+    tags.push({t:ch.cls==='flat'?'持平':`${ch.word} ${Math.abs(ch.p).toFixed(1)}%`,c:ch.cls==='flat'?'':ch.cls}); }
+  if(STATE.ind.vol && D.vavg5[i]){ const r=D.v[i]/D.vavg5[i];
+    if(r>=2) tags.push({t:'爆量',c:''}); else if(r>=1.3) tags.push({t:'量增',c:''}); else if(r<=0.7) tags.push({t:'量縮',c:''}); }
+  if(STATE.ind.maS && STATE.ind.maL && crosses(D.maS,D.maL,i,1)){ tags.push({t:'均線黃金交叉',c:'up'}); score++; }
+  else if(STATE.ind.maS && STATE.ind.maL && crosses(D.maS,D.maL,i,-1)){ tags.push({t:'均線死亡交叉',c:'down'}); score--; }
+  const ref = STATE.ind.maL && D.maL[i]!=null ? [D.maL[i],P.maL] : STATE.ind.maS && D.maS[i]!=null ? [D.maS[i],P.maS] : null;
+  if(ref){ const above=c>=ref[0]; tags.push({t:`${above?'站在':'落在'} ${ref[1]} 日均線${above?'上':'下'}`,c:above?'up':'down'}); score+=above?1:-1; }
+  const r=D.rsi[i];
+  if(STATE.ind.rsi && r!=null){ if(r>70) tags.push({t:'RSI 過熱',c:''}); else if(r<30) tags.push({t:'RSI 過冷',c:''}); }
+  const K=D.k[i];
+  if(STATE.ind.kd && K!=null){
+    if(crosses(D.k,D.d,i,1)){ tags.push({t:'KD 黃金交叉',c:'up'}); score++; }
+    else if(crosses(D.k,D.d,i,-1)){ tags.push({t:'KD 死亡交叉',c:'down'}); score--; }
+    else if(K>80) tags.push({t:'KD 高檔',c:''}); else if(K<20) tags.push({t:'KD 低檔',c:''});
+  }
+  let verdict, cls='';
+  if(score>=2){ verdict='偏強的一天'; cls='up'; }
+  else if(score<=-2){ verdict='偏弱的一天'; cls='down'; }
+  else verdict = s.kind==='doji' ? '多空拉鋸、方向未定的一天' : '多空拉鋸的一天';
+  if(STATE.ind.rsi && r!=null && r>70 && cls==='up') verdict+='，但短線已經過熱';
+  if(STATE.ind.rsi && r!=null && r<30 && cls==='down') verdict+='，但短線已經過冷';
+  return {tags,verdict,cls};
+}
+
+/* ================= ③ 白話解說 ================= */
+let moreOpen=false;
+try{ moreOpen = localStorage.getItem('kline-more')==='1'; }catch(e){}
+function renderExplain(){
+  hidePop();
+  const D=DATA, P=STATE.P, i=STATE.sel, o=D.o[i],h=D.h[i],l=D.l[i],c=D.c[i], pc=i>0?D.c[i-1]:null;
+  let html='';
+  if(pc!=null){
+    const ch=changeInfo(c,pc);
+    html+=`<div class="head"><span class="date">${fmtDate(D.t[i])}</span>
+      <span class="chg ${ch.cls}">${ch.cls==='up'?'▲':ch.cls==='down'?'▼':''} ${Math.abs(ch.diff).toFixed(2)}（${ch.p>0?'+':''}${ch.p.toFixed(2)}%）</span></div>`;
+  } else html+=`<div class="head"><span class="date">${fmtDate(D.t[i])}</span><span class="chg flat">第一個交易日</span></div>`;
+  html+=`<div class="ohlc-grid">
+    <div><small>開盤</small><b>${fmt(o)}</b></div><div><small>最高</small><b>${fmt(h)}</b></div>
+    <div><small>最低</small><b>${fmt(l)}</b></div><div><small>收盤</small><b>${fmt(c)}</b></div></div>`;
+  const sm=summarize(i);
+  html+=`<div class="summary"><small>一句話重點</small><div class="verdict ${sm.cls}">${sm.verdict}</div>
+    <div class="ctags">${sm.tags.map(t=>`<span class="ctag ${t.c}">${t.t}</span>`).join('')}</div></div>`;
+
+  let more='';
+  if(pc!=null){ const ch=changeInfo(c,pc);
+    more+=`<p style="margin:4px 0 0">收盤 ${fmt(c)} 元，比前一天${ch.cls==='flat'?'持平':`${ch.word} ${Math.abs(ch.diff).toFixed(2)} 元`}。</p>`; }
+  more+=sec('K 棒',candleText(o,h,l,c,pc));
+
+  if(STATE.ind.vol){
+    let t=`<p>今天成交 ${fmtVol(D.v[i])} ${term('張')}。</p>`;
+    if(D.vavg5[i]){
+      const ratio=D.v[i]/D.vavg5[i], r=ratio.toFixed(1);
+      if(ratio>=2) t+=`<p>約是前 5 天平均（${fmtVol(D.vavg5[i])} 張）的 <b>${r} 倍</b>，屬於明顯${term('放量')}。表示今天參與交易的人比平常多很多，這天的價格變化比較受到市場關注。</p>`;
+      else if(ratio>=1.3) t+=`<p>約是前 5 天平均的 ${r} 倍，比平常稍多。</p>`;
+      else if(ratio<=0.7) t+=`<p>只有前 5 天平均的 ${r} 倍，屬於${term('量縮')}，交易比平常冷清。</p>`;
+      else t+=`<p>和前 5 天平均（${fmtVol(D.vavg5[i])} 張）差不多。</p>`;
+    } else t+=`<p>資料還不滿 5 天，暫時無法和平均比較。</p>`;
+    more+=sec('成交量',t);
+  }
+
+  if(STATE.ind.maS||STATE.ind.maL){
+    let t='';
+    const pos = (ma,n) => ma==null?`<p>${n} 日均線需要 ${n} 天的資料，這天還沒有數值。</p>`:
+      `<p>收盤價 ${fmt(c)} 在 ${n} 日${term('均線')}（${fmt(ma)}）<b>${c>=ma?'之上':'之下'}</b>：最近 ${n} 個交易日買進的人，平均來說目前是${c>=ma?'賺':'虧'}錢的。</p>`;
+    if(STATE.ind.maS) t+=pos(D.maS[i],P.maS);
+    if(STATE.ind.maL) t+=pos(D.maL[i],P.maL);
+    if(STATE.ind.maS&&STATE.ind.maL&&D.maS[i]!=null&&D.maL[i]!=null){
+      if(crosses(D.maS,D.maL,i,1)) t+=`<p><span class="tag hot">均線${term('黃金交叉')}</span> 今天 ${P.maS} 日均線由下往上穿過 ${P.maL} 日均線，表示短期平均價格開始高於長期，常被視為轉強的訊號。</p>`;
+      else if(crosses(D.maS,D.maL,i,-1)) t+=`<p><span class="tag cold">均線${term('死亡交叉')}</span> 今天 ${P.maS} 日均線由上往下穿過 ${P.maL} 日均線，表示短期平均價格開始低於長期，常被視為轉弱的訊號。</p>`;
+      else t+=`<p>${P.maS} 日均線目前在 ${P.maL} 日均線${D.maS[i]>D.maL[i]?'之上，短期的平均價格高於長期，走勢偏多。':'之下，短期的平均價格低於長期，走勢偏空。'}</p>`;
+    }
+    more+=sec('均線',t);
+  }
+
+  if(STATE.ind.rsi){
+    const r=D.rsi[i]; let t='';
+    if(r==null) t=`<p>RSI(${P.rsi}) 需要 ${P.rsi+1} 天的資料，這天還沒有數值。</p>`;
+    else{
+      const v=r.toFixed(1), R=term('RSI');
+      if(r>70) t=`<p>${R} 為 <b>${v}</b> <span class="tag hot">${term('過熱')}區</span></p><p>超過 70，表示最近 ${P.rsi} 天上漲的幅度遠大於下跌，短期可能漲多了。不過強勢的股票可能維持過熱一段時間，不代表馬上會跌。</p>`;
+      else if(r<30) t=`<p>${R} 為 <b>${v}</b> <span class="tag cold">${term('過冷')}區</span></p><p>低於 30，表示最近 ${P.rsi} 天下跌的幅度遠大於上漲，短期可能跌多了。不過弱勢的股票可能繼續下跌，不代表馬上會反彈。</p>`;
+      else if(r>=50) t=`<p>${R} 為 <b>${v}</b> <span class="tag">偏強</span></p><p>介於 50～70，最近上漲的力道大於下跌，但還沒有到過熱。</p>`;
+      else t=`<p>${R} 為 <b>${v}</b> <span class="tag">偏弱</span></p><p>介於 30～50，最近下跌的力道大於上漲，但還沒有到過冷。</p>`;
+    }
+    more+=sec('RSI',t);
+  }
+
+  if(STATE.ind.kd){
+    const K=D.k[i],Dv=D.d[i]; let t='';
+    if(K==null) t=`<p>KD 需要 ${P.kd} 天的資料，這天還沒有數值。</p>`;
+    else{
+      t=`<p>${term('KD')}：K = <b>${K.toFixed(1)}</b>，D = <b>${Dv.toFixed(1)}</b>${K>80?` <span class="tag hot">${term('高檔')}</span>`:K<20?` <span class="tag cold">${term('低檔')}</span>`:''}</p>`;
+      t+=`<p>K 值 ${K.toFixed(0)} 代表今天的收盤價大約落在最近 ${P.kd} 天價格區間的${K>80?'頂部附近':K>60?'偏上方':K>=40?'中間':K>=20?'偏下方':'底部附近'}（已經過平滑處理）。</p>`;
+      if(crosses(D.k,D.d,i,1)) t+=`<p><span class="tag hot">KD ${term('黃金交叉')}</span> 今天 K 線由下往上穿過 D 線，表示短期動能轉強。${K<30?'發生在低檔，常被視為比較有參考價值的轉強訊號。':''}</p>`;
+      else if(crosses(D.k,D.d,i,-1)) t+=`<p><span class="tag cold">KD ${term('死亡交叉')}</span> 今天 K 線由上往下穿過 D 線，表示短期動能轉弱。${K>70?'發生在高檔，常被視為比較有參考價值的轉弱訊號。':''}</p>`;
+      else t+=`<p>K 在 D ${K>Dv?'之上，短期動能偏強。':'之下，短期動能偏弱。'}</p>`;
+    }
+    more+=sec('KD',t);
+  }
+  const hidden = INDICATORS.filter(it=>!STATE.ind[it.key]).map(it=>it.label());
+  if(hidden.length) more+=`<p class="fine">打開上方的 ${hidden.join('、')}，這裡會加上對應的說明。</p>`;
+  html+=`<details class="more" id="moreDetails" ${moreOpen?'open':''}><summary>看完整說明</summary>${more}</details>`;
+
+  const atEdge = i===STATE.view-1 && STATE.view<D.N;
+  html+=`<div class="navbtns">
+    <button class="btn" id="prevDay" ${i===0?'disabled':''}>← 前一天</button>
+    <button class="btn ${atEdge?'primary':''}" id="nextDay" ${i===D.N-1?'disabled':''}>${atEdge?'揭曉下一天 →':'後一天 →'}</button></div>
+    <p class="fine">一句話重點是依據上面的指標整理的常見解讀，不是保證的買賣訊號。</p>`;
+  const box=document.getElementById('explain'); box.innerHTML=html;
+  box.querySelector('#moreDetails').addEventListener('toggle',e=>{ moreOpen=e.target.open; try{localStorage.setItem('kline-more',moreOpen?'1':'0')}catch(err){} });
+  box.querySelector('#prevDay').onclick=goPrev;
+  box.querySelector('#nextDay').onclick=goNext;
+  updateSheet(sm);
+}
+function goPrev(){ stopPlay(); sheetWanted=true; select(STATE.sel-1); }
+function goNext(){
+  stopPlay(); sheetWanted=true;
+  if(STATE.sel===STATE.view-1 && STATE.view<DATA.N){ setView(STATE.view+1); select(STATE.view-1,{follow:true}); }
+  else select(STATE.sel+1);
+}
+function sec(title,body){return `<div class="ex-sec"><h4>${title}</h4>${body}</div>`}
+
+/* ================= ④ 型態小教室 ================= */
+function miniCandle({o,h,l,c},w=28,hgt=44,pad=3){
+  const y=v=>pad+(h-v)/(h-l||1)*(hgt-2*pad);
+  const col = c>=o?'var(--up)':'var(--down)';
+  const top=y(Math.max(o,c)), bot=y(Math.min(o,c));
+  return `<svg class="mini" viewBox="0 0 ${w} ${hgt}" aria-hidden="true">
+    <line x1="${w/2}" y1="${y(h)}" x2="${w/2}" y2="${y(l)}" stroke="${col}" stroke-width="2" stroke-linecap="round"/>
+    <rect x="${w*0.22}" y="${top}" width="${w*0.56}" height="${Math.max(2,bot-top)}" rx="1.5" fill="${col}"/></svg>`;
+}
+function lineIcon(colorA,colorB,cross){
+  const a = cross>0 ? 'M3 36 C 12 30, 16 12, 25 6' : 'M3 8 C 12 14, 16 32, 25 38';
+  return `<svg class="mini" viewBox="0 0 28 44" aria-hidden="true">
+    <path d="M3 22 C 12 22, 16 22, 25 22" fill="none" stroke="var(${colorB})" stroke-width="2"/>
+    <path d="${a}" fill="none" stroke="var(${colorA})" stroke-width="2"/></svg>`;
+}
+const rsiIcon = hot => `<svg class="mini" viewBox="0 0 28 44" aria-hidden="true"><line x1="0" y1="${hot?12:32}" x2="28" y2="${hot?12:32}" stroke="var(--faint)" stroke-dasharray="2 2"/><path d="${hot?'M2 36 L9 26 L15 18 L21 7 L26 5':'M2 8 L9 18 L15 26 L21 37 L26 39'}" fill="none" stroke="var(--rsi)" stroke-width="2"/></svg>`;
+const PATTERNS = [
+  {id:'redK', title:'長紅 K', needs:[], icon:()=>miniCandle({o:10,h:20.5,l:9.6,c:20}), desc:()=>'收盤遠高於開盤，買方整天占優勢。'},
+  {id:'greenK', title:'長綠 K', needs:[], icon:()=>miniCandle({o:20,h:20.4,l:9.5,c:10}), desc:()=>'收盤遠低於開盤，賣方整天占優勢。'},
+  {id:'longUpper', title:'長上影線', needs:[], icon:()=>miniCandle({o:10,h:20,l:9.6,c:11}), desc:()=>'盤中漲上去又被壓回，上方有賣壓。'},
+  {id:'longLower', title:'長下影線', needs:[], icon:()=>miniCandle({o:20,h:20.4,l:10,c:19}), desc:()=>'盤中跌下去又被拉回，下方有買盤。'},
+  {id:'doji', title:'十字線', needs:[], icon:()=>miniCandle({o:15.05,h:20,l:10,c:15}), desc:()=>'開盤收盤幾乎一樣，多空力量相當、方向未定。'},
+  {id:'volSpike', title:'爆量', needs:['vol'],
+   icon:()=>`<svg class="mini" viewBox="0 0 28 44" aria-hidden="true">${[8,10,7,9,34].map((hh,j)=>`<rect x="${1+j*5.4}" y="${42-hh}" width="4" height="${hh}" rx="1" fill="${j===4?'var(--up)':'var(--faint)'}"/>`).join('')}</svg>`,
+   desc:()=>'成交量突然變成平常的好幾倍，市場關注度大增。'},
+  {id:'maGold', title:'均線黃金交叉', needs:['maS','maL'], icon:()=>lineIcon('--ma5','--ma20',1),
+   desc:()=>`${STATE.P.maS} 日均線往上穿過 ${STATE.P.maL} 日均線，短期轉強。`},
+  {id:'maDeath', title:'均線死亡交叉', needs:['maS','maL'], icon:()=>lineIcon('--ma5','--ma20',-1),
+   desc:()=>`${STATE.P.maS} 日均線往下穿過 ${STATE.P.maL} 日均線，短期轉弱。`},
+  {id:'rsiHot', title:'RSI 過熱', needs:['rsi'], icon:()=>rsiIcon(true), desc:()=>'RSI 超過 70，短期漲多，但不代表馬上會跌。'},
+  {id:'rsiCold', title:'RSI 過冷', needs:['rsi'], icon:()=>rsiIcon(false), desc:()=>'RSI 低於 30，短期跌多，但不代表馬上會漲。'},
+  {id:'kdGold', title:'KD 低檔黃金交叉', needs:['kd'], icon:()=>lineIcon('--k','--d',1), desc:()=>'K 在低檔往上穿過 D，短期動能轉強。'},
+  {id:'kdDeath', title:'KD 高檔死亡交叉', needs:['kd'], icon:()=>lineIcon('--k','--d',-1), desc:()=>'K 在高檔往下穿過 D，短期動能轉弱。'},
+];
+function renderPatterns(){
+  const grid=document.getElementById('patternGrid');
+  grid.innerHTML = PATTERNS.map(p=>{
+    const idx=FINDERS[p.id](DATA); p.idx=idx;
+    return `<button class="card pcard" data-pid="${p.id}" ${idx<0?'disabled':''}>
+      <div class="row">${p.icon()}<h3>${p.title}</h3></div>
+      <p>${p.desc()}</p>
+      <span class="go">${idx<0?'這支教學股沒有出現這個型態':`看例子：${DATA.t[idx].replaceAll('-','/')} →`}</span></button>`;
+  }).join('');
+  grid.querySelectorAll('.pcard').forEach(b=>b.addEventListener('click',()=>{
+    const p=PATTERNS.find(x=>x.id===b.dataset.pid); if(p.idx<0) return;
+    stopPlay(); sheetWanted=true;
+    let changed=false; p.needs.forEach(k=>{ if(!STATE.ind[k]){STATE.ind[k]=true;changed=true;} });
+    if(STATE.view<DATA.N){ STATE.view=DATA.N; renderPlaybar(); if(!changed) pushData(); }
+    if(changed){ saveSettings(); renderToolbar(); buildChart(); }
+    select(p.idx,{scroll:true,center:true});
+  }));
+}
+
+/* ================= 術語彈出說明 ================= */
+const pop=document.getElementById('termPop'); let popFor=null, popTimer=null;
+function showPop(el){
+  clearTimeout(popTimer);
+  const k=el.dataset.term; if(!GLOSSARY[k]) return;
+  pop.innerHTML=`<b>${k}</b>${GLOSSARY[k]}`; pop.hidden=false; popFor=el; el.setAttribute('aria-describedby','termPop');
+  const r=el.getBoundingClientRect(), pw=pop.offsetWidth, ph=pop.offsetHeight;
+  let top=r.bottom+8; if(top+ph>innerHeight-8) top=r.top-ph-8;
+  pop.style.left=clamp(r.left+r.width/2-pw/2,8,innerWidth-pw-8)+'px'; pop.style.top=Math.max(8,top)+'px';
+}
+function hidePop(){ if(!pop) return; pop.hidden=true; if(popFor) popFor.removeAttribute('aria-describedby'); popFor=null; }
+document.addEventListener('click',e=>{
+  const t=e.target.closest('.term');
+  if(t){ e.preventDefault(); showPop(t); return; }
+  if(!e.target.closest('#termPop')) hidePop();
+});
+if(matchMedia('(hover:hover)').matches){
+  document.addEventListener('mouseover',e=>{ const t=e.target.closest('.term'); if(t) showPop(t); });
+  document.addEventListener('mouseout',e=>{ if(e.target.closest('.term')) popTimer=setTimeout(hidePop,150); });
+}
+document.addEventListener('focusin',e=>{ const t=e.target.closest&&e.target.closest('.term'); if(t) showPop(t); });
+window.addEventListener('scroll',()=>{ if(!pop.hidden) hidePop(); },{passive:true});
+
+/* ================= 手機浮動卡 ================= */
+const sheet=document.getElementById('sheet');
+let sheetWanted=false, chartInView=false, explainInView=false;
+const isNarrow=()=>matchMedia('(max-width:900px)').matches;
+function updateSheetVis(){
+  const show = sheetWanted && isNarrow() && chartInView && !explainInView && !tourOn;
+  sheet.classList.toggle('show',show); sheet.setAttribute('aria-hidden',String(!show));
+}
+function updateSheet(sm){
+  const i=STATE.sel, pc=i>0?DATA.c[i-1]:null;
+  document.getElementById('sheetDate').textContent=fmtDate(DATA.t[i]);
+  const chEl=document.getElementById('sheetChg');
+  if(pc!=null){ const ch=changeInfo(DATA.c[i],pc); chEl.className='chg '+ch.cls;
+    chEl.textContent=`${ch.cls==='up'?'▲':ch.cls==='down'?'▼':''} ${ch.p>0?'+':''}${ch.p.toFixed(2)}%`; }
+  else chEl.textContent='';
+  document.getElementById('sheetSum').innerHTML=`<span class="verdict ${sm.cls}">${sm.verdict}</span>：${sm.tags.map(t=>t.t).join('、')}`;
+  const atEdge = i===STATE.view-1 && STATE.view<DATA.N;
+  document.getElementById('sheetPrev').disabled = i===0;
+  const nx=document.getElementById('sheetNext'); nx.disabled = i===DATA.N-1; nx.textContent = atEdge?'揭曉 →':'後一天 →';
+  updateSheetVis();
+}
+document.getElementById('sheetPrev').addEventListener('click',goPrev);
+document.getElementById('sheetNext').addEventListener('click',goNext);
+document.getElementById('sheetClose').addEventListener('click',()=>{ sheetWanted=false; updateSheetVis(); });
+document.getElementById('sheetFull').addEventListener('click',()=>{
+  moreOpen=true; const d=document.getElementById('moreDetails'); if(d) d.open=true;
+  document.getElementById('explain').scrollIntoView({behavior:'smooth',block:'start'});
+});
+if('IntersectionObserver' in window){
+  const io=new IntersectionObserver(es=>{ es.forEach(e=>{
+    if(e.target.id==='chartBox') chartInView = e.isIntersecting && e.intersectionRect.height>120;
+    else explainInView = e.isIntersecting && e.intersectionRect.height>innerHeight*0.4;
+  }); updateSheetVis(); },{threshold:[0,0.05,0.1,0.2,0.3,0.4,0.5,0.6,0.8,1]});
+  io.observe(document.getElementById('chartBox')); io.observe(document.getElementById('explain'));
+}
+window.addEventListener('resize',updateSheetVis);
+
+/* ================= 新手引導 ================= */
+const TOUR=[
+  {sel:'#chartBox', title:'點 K 棒看解說',
+   text:()=> isNarrow() ? '點圖上任何一根 K 棒，畫面下方會出現當天的一句話重點，按「完整說明」可以看細節。' : '點圖上任何一根 K 棒，右邊的說明欄會用一句話告訴你那一天的重點，也可以展開完整說明。'},
+  {sel:'.playbar', title:'逐日播放', text:()=>'按「逐日播放」，走勢會一天一天揭曉，像真的在看盤一樣。也可以拖時間軸前後移動。'},
+  {sel:'.pcard', title:'從型態開始學', text:()=>'不知道從哪裡看起？點型態卡片，圖表會直接跳到教學股裡的實際例子。說明中有虛線底線的詞，點一下就會出現解釋。'},
+];
+let tourOn=false, tourI=0;
+const tourEl=document.getElementById('tour'), bubble=document.getElementById('tourBubble'), spot=document.getElementById('tourSpot');
+function startTour(){ stopPlay(); hidePop(); tourOn=true; tourI=0; tourEl.hidden=false; updateSheetVis(); showTourStep(); }
+function showTourStep(){
+  const s=TOUR[tourI], el=document.querySelector(s.sel);
+  el.scrollIntoView({block:'center',behavior:'instant'});
+  const last = tourI===TOUR.length-1;
+  bubble.innerHTML=`<h3 id="tourTitle">${s.title}</h3><p>${s.text()}</p>
+    <div class="tour-foot"><span class="step">${tourI+1} / ${TOUR.length}</span>
+    ${last?'':'<button class="btn sm" id="tourSkip">略過</button>'}
+    <button class="btn sm primary" id="tourNext">${last?'開始使用':'下一步'}</button></div>`;
+  bubble.querySelector('#tourNext').onclick=()=>{ if(last) endTour(); else { tourI++; showTourStep(); } };
+  const sk=bubble.querySelector('#tourSkip'); if(sk) sk.onclick=endTour;
+  placeTour(); bubble.querySelector('#tourNext').focus({preventScroll:true});
+}
+function placeTour(){
+  if(!tourOn) return;
+  const el=document.querySelector(TOUR[tourI].sel), r=el.getBoundingClientRect(), pad=6;
+  Object.assign(spot.style,{left:(r.left-pad)+'px',top:(r.top-pad)+'px',width:(r.width+pad*2)+'px',height:(r.height+pad*2)+'px'});
+  const bw=bubble.offsetWidth, bh=bubble.offsetHeight;
+  let top=r.bottom+pad+12;
+  if(top+bh>innerHeight-8) top=r.top-pad-12-bh;
+  if(top<8) top=innerHeight-bh-16;
+  bubble.style.top=top+'px'; bubble.style.left=clamp(r.left,16,innerWidth-bw-16)+'px';
+}
+function endTour(){ tourOn=false; tourEl.hidden=true; try{localStorage.setItem('kline-tour','done')}catch(e){} updateSheetVis(); window.scrollTo({top:0,behavior:'smooth'}); }
+window.addEventListener('scroll',placeTour,{passive:true});
+window.addEventListener('resize',placeTour);
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ hidePop(); if(tourOn) endTour(); } });
+document.getElementById('tourBtn').addEventListener('click',startTour);
+
+/* ================= 啟動 ================= */
+renderLabControls(); syncLab();
+renderToolbar(); renderParamSliders();
+buildChart(); renderPlaybar(); select(STATE.sel);
+renderPatterns();
+let tourSeen=false; try{ tourSeen = localStorage.getItem('kline-tour')==='done'; }catch(e){}
+if(!tourSeen) setTimeout(startTour,600);
+</script>
+</body>
+</html>
