@@ -22,9 +22,3 @@
 - 單一 `index.html`，不需要建置或後端
 - 圖表：[TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) v5.2.1，放在 `lib/`，不依賴外部 CDN
 - 規格書：[spec.md](spec.md)
-
-## 部署到 GitHub Pages
-1. 建立一個 public repository，上傳 `index.html`、`spec.md`、`README.md` 和整個 `lib/` 資料夾（資料夾結構要保持一樣）
-2. 到 **Settings → Pages**，Source 選 **Deploy from a branch**
-3. Branch 選 `main`、資料夾選 `/ (root)`，按 Save
-4. 等 1～2 分鐘，網址會是 `https://<你的帳號>.github.io/<repo 名稱>/`
